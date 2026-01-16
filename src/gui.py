@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk, Toplevel, Text, Scrollbar, END
+from tkinter import messagebox, ttk, Toplevel, Text, Scrollbar, END, simpledialog
 from PIL import ImageTk, Image
 from datetime import datetime
 import os
@@ -29,21 +29,30 @@ class LoginApp:
     def login(self):
         user = self.user_entry.get()
         password = self.pass_entry.get()
-        if self.backend.verify_login(user, password):
-            self.on_login_success(user)
+        success, role = self.backend.verify_login(user, password)
+        if success:
+            self.on_login_success(user, role)
         else:
             messagebox.showerror("Error", "Invalid Credentials")
 
 class MainApp:
-    def __init__(self, root, username):
+    def __init__(self, root, username, role, logout_callback):
         self.root = root
         self.username = username
+        self.role = role
+        self.logout_callback = logout_callback
         self.backend = CafeBackend()
         self.menu_data = self.backend.get_menu()
         self.menu_vars = {} # Stores IntVars for quantities
 
-        self.root.title(f"Cafe Management System - Logged in as: {self.username}")
-        self.root.geometry("900x600")
+        self.root.title(f"Cafe Management System - {self.username} ({self.role})")
+
+        # Maximize window based on platform
+        try:
+            self.root.state('zoomed')
+        except:
+            self.root.attributes('-zoomed', True)
+
         self.root['bg'] = "white"
 
         self.setup_ui()
@@ -64,8 +73,14 @@ class MainApp:
 
         tk.Label(header_frame, text="Cafe Management System", font=('verdana', 20, 'bold'), fg="white", bg="#0C9608").pack(side=tk.LEFT, padx=10)
 
+        # Right Header Buttons
+        tk.Button(header_frame, text="Logout", command=self.logout_callback, bg="red", fg="white").pack(side=tk.RIGHT, padx=10)
         tk.Button(header_frame, text="History", command=self.view_history, bg="white", fg="#0C9608").pack(side=tk.RIGHT, padx=10)
-        tk.Label(header_frame, text=self.username, font=('verdana', 10), fg="white", bg="#0C9608").pack(side=tk.RIGHT, padx=10)
+
+        if self.role == "admin":
+             tk.Button(header_frame, text="Edit Menu", command=self.edit_menu_popup, bg="blue", fg="white").pack(side=tk.RIGHT, padx=10)
+
+        tk.Label(header_frame, text=f"{self.username} ({self.role})", font=('verdana', 10), fg="white", bg="#0C9608").pack(side=tk.RIGHT, padx=10)
 
         # Main Content Area
         content_frame = tk.Frame(self.root, bg="white")
@@ -120,6 +135,7 @@ class MainApp:
 
         tk.Button(btn_frame, text="Calculate", command=self.calculate, bg="#c9a511", fg="white", font=('verdana', 10, 'bold'), width=10).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Print/Pay", command=self.print_receipt, bg="#0C9608", fg="white", font=('verdana', 10, 'bold'), width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(btn_frame, text="Email Receipt", command=self.email_receipt, bg="orange", fg="white", font=('verdana', 10, 'bold'), width=12).pack(side=tk.LEFT, padx=5)
         tk.Button(btn_frame, text="Clear", command=self.clear, bg="red", fg="white", font=('verdana', 10, 'bold'), width=10).pack(side=tk.LEFT, padx=5)
 
         # Receipt Preview
@@ -185,8 +201,6 @@ class MainApp:
             self.vars["Total"].set(f"{currency}{bill_data['total_bill']:.2f}")
 
             # Preview receipt text without saving
-            # We construct a preview manually or just show "Ready to Print"
-            # Let's generate a temporary receipt text
             receipt_text = self.backend._generate_receipt(self.username, bill_data)
             self.receipt_area.delete(1.0, END)
             self.receipt_area.insert(END, receipt_text)
@@ -225,6 +239,95 @@ class MainApp:
 
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to process transaction: {e}")
+
+    def email_receipt(self):
+        # We need the receipt text first.
+        # This implies we must calculate first.
+        receipt_text = self.receipt_area.get(1.0, END).strip()
+        if not receipt_text:
+             messagebox.showwarning("Warning", "Calculate bill first to generate receipt.")
+             return
+
+        recipient = simpledialog.askstring("Email Receipt", "Enter Recipient Email:")
+        if recipient:
+            try:
+                self.backend.send_receipt_email(recipient, receipt_text)
+                messagebox.showinfo("Success", "Email sent successfully.")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+    def edit_menu_popup(self):
+        popup = Toplevel(self.root)
+        popup.title("Edit Menu (Admin)")
+        popup.geometry("400x500")
+
+        canvas = tk.Canvas(popup)
+        scrollbar = tk.Scrollbar(popup, orient="vertical", command=canvas.yview)
+        scroll_frame = tk.Frame(canvas)
+
+        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        tk.Label(scroll_frame, text="Item Name").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(scroll_frame, text="Price").grid(row=0, column=1, padx=5, pady=5)
+        tk.Label(scroll_frame, text="Stock").grid(row=0, column=2, padx=5, pady=5)
+
+        row = 1
+        entries = {}
+        for item, details in self.menu_data.items():
+            tk.Label(scroll_frame, text=item).grid(row=row, column=0, padx=5, pady=2)
+
+            p_var = tk.StringVar(value=str(details['price']))
+            p_entry = tk.Entry(scroll_frame, textvariable=p_var, width=8)
+            p_entry.grid(row=row, column=1, padx=5, pady=2)
+
+            s_var = tk.StringVar(value=str(details['stock']))
+            s_entry = tk.Entry(scroll_frame, textvariable=s_var, width=8)
+            s_entry.grid(row=row, column=2, padx=5, pady=2)
+
+            entries[item] = (p_var, s_var)
+            row += 1
+
+        # Add New Item Section
+        tk.Label(scroll_frame, text="Add New:", font=('bold')).grid(row=row, column=0, pady=10)
+        row += 1
+        new_name = tk.Entry(scroll_frame, width=15)
+        new_name.grid(row=row, column=0, padx=5)
+        new_price = tk.Entry(scroll_frame, width=8)
+        new_price.grid(row=row, column=1, padx=5)
+        new_stock = tk.Entry(scroll_frame, width=8)
+        new_stock.grid(row=row, column=2, padx=5)
+
+        def save_changes():
+            # Update existing
+            for item, (p_var, s_var) in entries.items():
+                try:
+                    p = int(p_var.get())
+                    s = int(s_var.get())
+                    self.backend.update_menu_item(item, p, s)
+                except ValueError:
+                    pass # Ignore invalid inputs
+
+            # Add new
+            name = new_name.get().strip()
+            if name:
+                try:
+                    p = int(new_price.get())
+                    s = int(new_stock.get())
+                    self.backend.add_menu_item(name, p, s)
+                except ValueError:
+                    messagebox.showwarning("Error", "Invalid data for new item")
+
+            messagebox.showinfo("Success", "Menu updated!")
+            self.refresh_menu_stock()
+            popup.destroy()
+
+        tk.Button(popup, text="Save Changes", command=save_changes, bg="green", fg="white").pack(pady=10)
+
 
     def clear(self):
         for var in self.menu_vars.values():

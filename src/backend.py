@@ -1,6 +1,8 @@
 import json
 import csv
 import os
+import smtplib
+from email.mime.text import MIMEText
 from datetime import datetime
 
 class StockError(Exception):
@@ -25,12 +27,41 @@ class CafeBackend:
             self.config = json.load(f)
 
     def verify_login(self, username, password):
-        if username in self.users and self.users[username] == password:
-            return True
-        return False
+        """
+        Verifies login credentials.
+        Returns: (True, role) if successful, (False, None) otherwise.
+        """
+        if username in self.users:
+            user_data = self.users[username]
+            # Handle both old format (string password) and new format (dict with role)
+            if isinstance(user_data, dict):
+                if user_data.get("password") == password:
+                    return True, user_data.get("role", "cashier")
+            elif user_data == password: # Fallback for flat structure
+                return True, "cashier"
+        return False, None
 
     def get_menu(self):
         return self.menu
+
+    def update_menu_item(self, item_name, price, stock):
+        if item_name in self.menu:
+            self.menu[item_name]["price"] = price
+            self.menu[item_name]["stock"] = stock
+            self._save_menu()
+            return True
+        return False
+
+    def add_menu_item(self, item_name, price, stock):
+        if item_name not in self.menu:
+            self.menu[item_name] = {"price": price, "stock": stock}
+            self._save_menu()
+            return True
+        return False
+
+    def _save_menu(self):
+        with open(self.menu_file, 'w') as f:
+            json.dump(self.menu, f, indent=4)
 
     def calculate_bill(self, quantities):
         """
@@ -94,8 +125,7 @@ class CafeBackend:
             self.menu[item_name]["stock"] -= qty
 
         # Save updated menu (stock)
-        with open(self.menu_file, 'w') as f:
-            json.dump(self.menu, f, indent=4)
+        self._save_menu()
 
         # Log transaction
         self._log_transaction(cashier_name, bill_data)
@@ -148,3 +178,22 @@ class CafeBackend:
         lines.append("="*40)
 
         return "\n".join(lines)
+
+    def send_receipt_email(self, recipient_email, receipt_text):
+        if "smtp" not in self.config:
+            raise Exception("SMTP configuration missing.")
+
+        smtp_config = self.config["smtp"]
+        msg = MIMEText(receipt_text)
+        msg['Subject'] = "Cafe Receipt"
+        msg['From'] = smtp_config["sender_email"]
+        msg['To'] = recipient_email
+
+        try:
+            with smtplib.SMTP(smtp_config["server"], smtp_config["port"]) as server:
+                server.starttls()
+                server.login(smtp_config["sender_email"], smtp_config["password"])
+                server.send_message(msg)
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to send email: {e}")

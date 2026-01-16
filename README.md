@@ -4,19 +4,22 @@ A production-ready, Python-based Cafe Management System with a GUI built using T
 
 ## Features
 
+*   **Role-Based Access Control**:
+    *   **Admin**: Can manage menu items (add/edit prices & stock), view history, and process sales.
+    *   **Cashier**: Restricted to processing sales and viewing history.
 *   **Dynamic Menu**: Menu items and prices are loaded from a JSON configuration file (`data/menu.json`).
-*   **Inventory Management**: Automatically tracks stock levels. Prevents sales if items are out of stock.
-*   **Authentication**: Secure login system for cashiers/admins.
-*   **Sales Logging**: detailed transaction history is saved to a CSV file (`data/sales_history.csv`) for analysis.
-*   **Receipt Generation**: Generates and saves text-based receipts.
-*   **Responsive UI**: Built with Tkinter using a grid layout for better usability.
+*   **Inventory Management**: Automatically tracks stock levels. Prevents sales if items are out of stock. Admin can replenish stock via the UI.
+*   **Sales Logging**: Detailed transaction history is saved to a CSV file (`data/sales_history.csv`) for analysis.
+*   **Receipt Generation**:
+    *   Generates and saves text-based receipts to `receipts/` folder.
+    *   **Email Receipt**: Option to email the receipt to the customer (requires SMTP config).
+*   **Responsive UI**: Built with Tkinter using a grid layout, maximized window support, and intuitive design.
 
 ## Prerequisites
 
 *   Python 3.x
 *   Required Python packages (listed in `requirements.txt`):
     *   `Pillow`
-    *   `pandas` (for future data analysis capabilities)
     *   `pytest` (for running tests)
 
 ## Installation
@@ -36,23 +39,34 @@ A production-ready, Python-based Cafe Management System with a GUI built using T
 2.  **Login**:
     *   **Admin**: Username: `admin`, Password: `admin123`
     *   **Cashier**: Username: `cashier`, Password: `cafe2024`
-    *(Credentials can be managed in `data/users.json`)*
+    *(Users and roles can be managed in `data/users.json`)*
 
 3.  **Main Interface**:
     *   **Menu**: Select quantities for items on the left.
-    *   **Calculate**: Click to see the bill breakdown (Cost, Service Charge, Tax, Total).
-    *   **Print/Pay**: Finalizes the transaction, deducts stock, saves the receipt to `receipts/` folder, and logs the sale.
-    *   **History**: Click the "History" button in the header to view past transactions.
+    *   **Calculate**: Click to see the bill breakdown.
+    *   **Print/Pay**: Finalizes the transaction, deducts stock, saves the receipt, and logs the sale.
+    *   **Email Receipt**: Click to send the receipt via email (configure SMTP in `data/config.json`).
+    *   **History**: View past transactions.
+    *   **Edit Menu (Admin Only)**: Update prices, add stock, or create new items.
+    *   **Logout**: Return to the login screen.
 
 ## Configuration
 
-*   **Menu & Stock**: Edit `data/menu.json` to change items, prices, and initial stock.
-*   **Settings**: Edit `data/config.json` to adjust Tax Rate, Service Charge, and Currency symbol.
-*   **Users**: Edit `data/users.json` to add or remove users.
-
-## Data Analysis
-
-Sales data is stored in `data/sales_history.csv`. You can open this file in Excel, Google Sheets, or load it into Python using `pandas` for advanced analysis (revenue trends, popular items, etc.).
+*   **Menu**: Edit `data/menu.json` or use the Admin UI.
+*   **Users**: Edit `data/users.json` to add users. Format:
+    ```json
+    "username": { "password": "password", "role": "admin" }
+    ```
+*   **Settings**: Edit `data/config.json` to adjust Tax Rate, Service Charge, Currency, and SMTP settings.
+    *   **SMTP Example**:
+        ```json
+        "smtp": {
+            "server": "smtp.gmail.com",
+            "port": 587,
+            "sender_email": "your-email@gmail.com",
+            "password": "your-app-password"
+        }
+        ```
 
 ## Testing
 

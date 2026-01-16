@@ -1,4 +1,10 @@
 {
-    "admin": "admin123",
-    "cashier": "cafe2024"
+    "admin": {
+        "password": "admin123",
+        "role": "admin"
+    },
+    "cashier": {
+        "password": "cafe2024",
+        "role": "cashier"
+    }
 }
